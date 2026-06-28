@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>รายจ่าย Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg:        #0f1117;
+    --surface:   #181c27;
+    --surface2:  #1e2333;
+    --border:    #2a3045;
+    --accent:    #4f8aff;
+    --accent2:   #7c5cfc;
+    --green:     #22c55e;
+    --red:       #ef4444;
+    --amber:     #f59e0b;
+    --text:      #e8ecf4;
+    --muted:     #6b7a99;
+    --radius:    10px;
+    --font:      'IBM Plex Sans Thai', sans-serif;
+    --mono:      'IBM Plex Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* ── Top bar ── */
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar h1 { font-size: 16px; font-weight: 600; letter-spacing: -.2px; }
+  .topbar h1 span { color: var(--accent); }
+
+  /* ── Config panel ── */
+  #config-panel {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin: 20px 24px;
+  }
+  #config-panel h2 { font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: 14px; text-transform: uppercase; letter-spacing: .06em; }
+  .config-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .config-row label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
+  .config-row input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    width: 320px;
+    outline: none;
+  }
+  .config-row input:focus { border-color: var(--accent); }
+
+  /* ── Main layout ── */
+  .main { padding: 0 24px 40px; }
+
+  /* ── Filters ── */
+  .filters {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .filters select, .filters input[type=number] {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 13px;
+    outline: none;
+    cursor: pointer;
+  }
+  .filters select:focus, .filters input[type=number]:focus { border-color: var(--accent); }
+  .filters label { font-size: 12px; color: var(--muted); }
+
+  /* ── Buttons ── */
+  .btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: none;
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+  .btn:hover { opacity: .85; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-success { background: var(--green); color: #fff; }
+  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+  /* ── KPI cards ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+  }
+  .kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+  .kpi-value { font-size: 26px; font-weight: 600; font-family: var(--mono); color: var(--accent); }
+  .kpi-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* ── Daily chart ── */
+  .chart-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    margin-bottom: 24px;
+  }
+  .chart-title { font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: 16px; }
+  .bar-chart { display: flex; align-items: flex-end; gap: 4px; height: 100px; overflow-x: auto; }
+  .bar-col { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 28px; }
+  .bar {
+    background: linear-gradient(180deg, var(--accent) 0%, var(--accent2) 100%);
+    border-radius: 4px 4px 0 0;
+    width: 20px;
+    min-height: 2px;
+    transition: opacity .15s;
+    cursor: pointer;
+  }
+  .bar:hover { opacity: .75; }
+  .bar-day { font-size: 9px; color: var(--muted); font-family: var(--mono); }
+  .bar-amt { font-size: 8px; color: var(--accent); font-family: var(--mono); }
+
+  /* ── Table ── */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .table-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .table-header h3 { font-size: 13px; font-weight: 500; }
+  .table-actions { display: flex; gap: 8px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+    font-weight: 500;
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+
+  .amount-cell { font-family: var(--mono); font-weight: 500; color: var(--amber); }
+
+  /* Editable cell */
+  .editable {
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 2px 6px;
+    display: inline-block;
+    transition: background .15s;
+  }
+  .editable:hover { background: var(--surface2); outline: 1px dashed var(--border); }
+
+  input.cell-input {
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 2px 6px;
+    width: 110px;
+    outline: none;
+  }
+
+  /* Slip thumbnail */
+  .slip-thumb {
+    width: 38px;
+    height: 38px;
+    object-fit: cover;
+    border-radius: 5px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    transition: transform .15s;
+  }
+  .slip-thumb:hover { transform: scale(1.08); }
+  .no-slip { color: var(--muted); font-size: 11px; }
+
+  /* ── Modal (slip preview + edit) ── */
+  .modal-bg {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.7);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    width: min(520px, 94vw);
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+  }
+  .modal h2 { font-size: 15px; font-weight: 600; margin-bottom: 18px; }
+  .modal img { width: 100%; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--border); }
+  .modal-close {
+    position: absolute;
+    top: 14px; right: 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .form-row { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+  .form-row label { font-size: 12px; color: var(--muted); }
+  .form-row input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 9px 12px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    outline: none;
+  }
+  .form-row input:focus { border-color: var(--accent); }
+  .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    background: var(--green);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    opacity: 0;
+    transition: opacity .3s;
+    z-index: 300;
+    pointer-events: none;
+  }
+  #toast.show { opacity: 1; }
+  #toast.error { background: var(--red); }
+
+  /* ── Loader ── */
+  .loader { text-align: center; padding: 40px; color: var(--muted); font-size: 13px; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .badge-blue { background: rgba(79,138,255,.15); color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <h1>💰 <span>รายจ่าย</span> Dashboard</h1>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <span id="status-dot" style="font-size:12px;color:var(--muted);">⬤ ยังไม่ได้เชื่อมต่อ</span>
+  </div>
+</div>
+
+<!-- Config -->
+<div id="config-panel">
+  <h2>⚙️ ตั้งค่า Supabase</h2>
+  <div class="config-row">
+    <label>Project URL
+      <input id="sb-url" type="text" placeholder="https://xxxx.supabase.co" />
+    </label>
+    <label>Anon Key
+      <input id="sb-key" type="password" placeholder="eyJhbGciOi..." style="width:280px;" />
+    </label>
+    <button class="btn btn-primary" onclick="connect()">เชื่อมต่อ</button>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main" id="main-content" style="display:none;">
+
+  <!-- Filters -->
+  <div class="filters" style="margin-bottom:16px;">
+    <label>เดือน
+      <select id="filter-month" onchange="loadData()">
+        <option value="">ทุกเดือน</option>
+        <option value="1">ม.ค.</option><option value="2">ก.พ.</option>
+        <option value="3">มี.ค.</option><option value="4">เม.ย.</option>
+        <option value="5">พ.ค.</option><option value="6">มิ.ย.</option>
+        <option value="7">ก.ค.</option><option value="8">ส.ค.</option>
+        <option value="9">ก.ย.</option><option value="10">ต.ค.</option>
+        <option value="11">พ.ย.</option><option value="12">ธ.ค.</option>
+      </select>
+    </label>
+    <label>ปี
+      <select id="filter-year" onchange="loadData()"></select>
+    </label>
+    <label>วันที่
+      <input type="number" id="filter-day" min="1" max="31" placeholder="ทุกวัน" style="width:90px;" oninput="loadData()" />
+    </label>
+    <button class="btn btn-ghost btn-sm" onclick="clearFilters()">ล้างตัวกรอง</button>
+    <button class="btn btn-success btn-sm" onclick="exportExcel()">⬇ Export Excel</button>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-label">รายจ่ายทั้งหมด</div>
+      <div class="kpi-value" id="kpi-total">—</div>
+      <div class="kpi-sub">บาท</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">จำนวนรายการ</div>
+      <div class="kpi-value" id="kpi-count">—</div>
+      <div class="kpi-sub">รายการ</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">เฉลี่ยต่อรายการ</div>
+      <div class="kpi-value" id="kpi-avg">—</div>
+      <div class="kpi-sub">บาท</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">วันที่จ่ายมากสุด</div>
+      <div class="kpi-value" id="kpi-topday">—</div>
+      <div class="kpi-sub" id="kpi-topday-amt"></div>
+    </div>
+  </div>
+
+  <!-- Daily bar chart -->
+  <div class="chart-wrap">
+    <div class="chart-title">รายจ่ายต่อวัน</div>
+    <div class="bar-chart" id="bar-chart"></div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <div class="table-header">
+      <h3>รายการทั้งหมด <span class="badge badge-blue" id="row-count">0</span></h3>
+      <div class="table-actions">
+        <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ เพิ่มรายการ</button>
+      </div>
+    </div>
+    <div id="table-container">
+      <div class="loader">กำลังโหลด...</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Modal: view/edit -->
+<div class="modal-bg" id="edit-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('edit-modal')">✕</button>
+    <h2 id="modal-title">แก้ไขรายการ</h2>
+    <img id="modal-slip" src="" alt="สลิป" style="display:none;" />
+    <div id="modal-no-slip" style="display:none;color:var(--muted);font-size:12px;margin-bottom:16px;">ไม่มีรูปสลิป</div>
+    <input type="hidden" id="modal-id" />
+    <div class="form-row">
+      <label>วัน</label>
+      <input type="number" id="modal-day" min="1" max="31" />
+    </div>
+    <div class="form-row">
+      <label>เดือน</label>
+      <input type="number" id="modal-month" min="1" max="12" />
+    </div>
+    <div class="form-row">
+      <label>ปี (ค.ศ.)</label>
+      <input type="number" id="modal-year" min="2000" max="2100" />
+    </div>
+    <div class="form-row">
+      <label>เวลา (HH:MM)</label>
+      <input type="text" id="modal-time" placeholder="14:35" />
+    </div>
+    <div class="form-row">
+      <label>ยอดเงิน (บาท)</label>
+      <input type="number" id="modal-amount" step="0.01" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm" onclick="deleteRow()">🗑 ลบ</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('edit-modal')">ยกเลิก</button>
+      <button class="btn btn-primary btn-sm" onclick="saveEdit()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: add -->
+<div class="modal-bg" id="add-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('add-modal')">✕</button>
+    <h2>เพิ่มรายการใหม่</h2>
+    <div class="form-row"><label>วัน</label><input type="number" id="add-day" min="1" max="31" /></div>
+    <div class="form-row"><label>เดือน</label><input type="number" id="add-month" min="1" max="12" /></div>
+    <div class="form-row"><label>ปี (ค.ศ.)</label><input type="number" id="add-year" min="2000" /></div>
+    <div class="form-row"><label>เวลา</label><input type="text" id="add-time" placeholder="14:35" /></div>
+    <div class="form-row"><label>ยอดเงิน</label><input type="number" id="add-amount" step="0.01" /></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('add-modal')">ยกเลิก</button>
+      <button class="btn btn-primary btn-sm" onclick="saveAdd()">เพิ่ม</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────
+let SUPABASE_URL = '';
+let SUPABASE_KEY = '';
+let allRows = [];
+const THAI_MONTHS = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.',
+                     'ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+// ── Supabase helpers ───────────────────────────────────────────────────
+async function sbFetch(path, opts = {}) {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': opts.prefer || '',
+      ...opts.headers,
+    },
+    ...opts,
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+// ── Connect ────────────────────────────────────────────────────────────
+async function connect() {
+  SUPABASE_URL = document.getElementById('sb-url').value.trim().replace(/\/$/, '');
+  SUPABASE_KEY = document.getElementById('sb-key').value.trim();
+
+  if (!SUPABASE_URL || !SUPABASE_KEY) { toast('กรอก URL และ Key ก่อนครับ', true); return; }
+
+  try {
+    // ทดสอบ connection
+    await sbFetch('expenses?select=count&limit=1');
+    localStorage.setItem('sb_url', SUPABASE_URL);
+    localStorage.setItem('sb_key', SUPABASE_KEY);
+    document.getElementById('status-dot').textContent = '⬤ เชื่อมต่อแล้ว';
+    document.getElementById('status-dot').style.color = 'var(--green)';
+    document.getElementById('config-panel').style.display = 'none';
+    document.getElementById('main-content').style.display = 'block';
+    initYearFilter();
+    loadData();
+  } catch(e) {
+    toast('เชื่อมต่อไม่ได้: ' + e.message, true);
+  }
+}
+
+// ── Filters ────────────────────────────────────────────────────────────
+function initYearFilter() {
+  const sel = document.getElementById('filter-year');
+  const now = new Date();
+  sel.innerHTML = '<option value="" selected>ทุกปี</option>';
+  for (let y = now.getFullYear(); y >= 2024; y--) {
+    sel.innerHTML += `<option value="${y}">${y}</option>`;
+  }
+}
+
+function clearFilters() {
+  document.getElementById('filter-month').value = '';
+  document.getElementById('filter-day').value = '';
+  document.getElementById('filter-year').value = '';
+  loadData();
+}
+
+// ── Load data ──────────────────────────────────────────────────────────
+async function loadData() {
+  const month = document.getElementById('filter-month').value;
+  const year  = document.getElementById('filter-year').value;
+  const day   = document.getElementById('filter-day').value;
+
+  let q = 'expenses?select=*&order=year.desc,month.desc,day.desc,time_str.desc';
+  if (year)  q += `&year=eq.${year}`;
+  if (month) q += `&month=eq.${month}`;
+  if (day)   q += `&day=eq.${day}`;
+
+  try {
+    allRows = await sbFetch(q, { headers: { 'Range': '0-999' } });
+    renderAll();
+  } catch(e) {
+    document.getElementById('table-container').innerHTML =
+      `<div class="loader" style="color:var(--red)">โหลดข้อมูลไม่ได้: ${e.message}</div>`;
+  }
+}
+
+// ── Render ─────────────────────────────────────────────────────────────
+function renderAll() {
+  renderKPI();
+  renderChart();
+  renderTable();
+}
+
+function renderKPI() {
+  const total = allRows.reduce((s, r) => s + parseFloat(r.amount || 0), 0);
+  const count = allRows.length;
+  const avg   = count ? total / count : 0;
+
+  // หาวันที่จ่ายมากสุด
+  const byDay = {};
+  allRows.forEach(r => {
+    const k = `${r.day}/${r.month}/${r.year}`;
+    byDay[k] = (byDay[k] || 0) + parseFloat(r.amount || 0);
+  });
+  const topEntry = Object.entries(byDay).sort((a,b) => b[1]-a[1])[0];
+
+  document.getElementById('kpi-total').textContent = fmt(total);
+  document.getElementById('kpi-count').textContent = count;
+  document.getElementById('kpi-avg').textContent   = fmt(avg);
+  document.getElementById('row-count').textContent = count;
+
+  if (topEntry) {
+    const [k, v] = topEntry;
+    const [d, m] = k.split('/');
+    document.getElementById('kpi-topday').textContent     = `${d} ${THAI_MONTHS[+m]}`;
+    document.getElementById('kpi-topday-amt').textContent = fmt(v) + ' บาท';
+  }
+}
+
+function renderChart() {
+  const byDay = {};
+  allRows.forEach(r => {
+    const k = `${String(r.year).slice(-2)}/${String(r.month).padStart(2,'0')}/${String(r.day).padStart(2,'0')}`;
+    const label = `${r.day}`;
+    byDay[k] = { label, amt: (byDay[k]?.amt || 0) + parseFloat(r.amount || 0) };
+  });
+
+  const sorted = Object.entries(byDay).sort((a,b) => a[0].localeCompare(b[0]));
+  const maxAmt = Math.max(...sorted.map(([,v]) => v.amt), 1);
+  const HEIGHT = 80;
+
+  const html = sorted.map(([, v]) => {
+    const h = Math.max(2, (v.amt / maxAmt) * HEIGHT);
+    const a = v.amt >= 1000 ? (v.amt/1000).toFixed(1)+'k' : Math.round(v.amt);
+    return `<div class="bar-col">
+      <div class="bar-amt">${a}</div>
+      <div class="bar" style="height:${h}px" title="${v.label}: ${fmt(v.amt)} บาท"></div>
+      <div class="bar-day">${v.label}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('bar-chart').innerHTML = html || '<div style="color:var(--muted);font-size:12px;padding:30px">ไม่มีข้อมูล</div>';
+}
+
+function renderTable() {
+  if (!allRows.length) {
+    document.getElementById('table-container').innerHTML =
+      '<div class="loader">ไม่มีรายการในช่วงเวลานี้</div>';
+    return;
+  }
+
+  const rows = allRows.map(r => {
+    const monthTh = THAI_MONTHS[r.month] || r.month;
+    const slipCell = r.slip_url
+      ? `<img class="slip-thumb" src="${r.slip_url}" alt="สลิป" onclick="previewSlip('${r.slip_url}')" />`
+      : `<span class="no-slip">—</span>`;
+
+    return `<tr>
+      <td>${r.day} ${monthTh} ${r.year}</td>
+      <td style="font-family:var(--mono);font-size:12px;">${r.time_str || '—'}</td>
+      <td class="amount-cell">${fmt(r.amount)}</td>
+      <td>${slipCell}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick='openEditModal(${JSON.stringify(r)})'>✏️ แก้ไข</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('table-container').innerHTML = `
+    <table>
+      <thead><tr>
+        <th>วันที่</th><th>เวลา</th><th>ยอดเงิน (฿)</th><th>สลิป</th><th>จัดการ</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// ── Edit modal ─────────────────────────────────────────────────────────
+function openEditModal(r) {
+  document.getElementById('modal-id').value     = r.id;
+  document.getElementById('modal-day').value    = r.day;
+  document.getElementById('modal-month').value  = r.month;
+  document.getElementById('modal-year').value   = r.year;
+  document.getElementById('modal-time').value   = r.time_str || '';
+  document.getElementById('modal-amount').value = r.amount;
+  document.getElementById('modal-title').textContent = 'แก้ไขรายการ #' + r.id;
+
+  const img = document.getElementById('modal-slip');
+  const noSlip = document.getElementById('modal-no-slip');
+  if (r.slip_url) {
+    img.src = r.slip_url; img.style.display = 'block';
+    noSlip.style.display = 'none';
+  } else {
+    img.style.display = 'none';
+    noSlip.style.display = 'block';
+  }
+  document.getElementById('edit-modal').classList.add('open');
+}
+
+async function saveEdit() {
+  const id = document.getElementById('modal-id').value;
+  const body = {
+    day:      parseInt(document.getElementById('modal-day').value),
+    month:    parseInt(document.getElementById('modal-month').value),
+    year:     parseInt(document.getElementById('modal-year').value),
+    time_str: document.getElementById('modal-time').value,
+    amount:   parseFloat(document.getElementById('modal-amount').value),
+  };
+  try {
+    await sbFetch(`expenses?id=eq.${id}`, {
+      method: 'PATCH',
+      prefer: 'return=minimal',
+      body: JSON.stringify(body),
+    });
+    toast('บันทึกแล้วครับ ✅');
+    closeModal('edit-modal');
+    loadData();
+  } catch(e) { toast('บันทึกไม่ได้: ' + e.message, true); }
+}
+
+async function deleteRow() {
+  if (!confirm('ลบรายการนี้?')) return;
+  const id = document.getElementById('modal-id').value;
+  try {
+    await sbFetch(`expenses?id=eq.${id}`, { method: 'DELETE', prefer: 'return=minimal' });
+    toast('ลบแล้วครับ');
+    closeModal('edit-modal');
+    loadData();
+  } catch(e) { toast('ลบไม่ได้: ' + e.message, true); }
+}
+
+// ── Add modal ──────────────────────────────────────────────────────────
+function openAddModal() {
+  const now = new Date();
+  document.getElementById('add-day').value    = now.getDate();
+  document.getElementById('add-month').value  = now.getMonth() + 1;
+  document.getElementById('add-year').value   = now.getFullYear();
+  document.getElementById('add-time').value   = now.toTimeString().slice(0,5);
+  document.getElementById('add-amount').value = '';
+  document.getElementById('add-modal').classList.add('open');
+}
+
+async function saveAdd() {
+  const body = {
+    day:      parseInt(document.getElementById('add-day').value),
+    month:    parseInt(document.getElementById('add-month').value),
+    year:     parseInt(document.getElementById('add-year').value),
+    time_str: document.getElementById('add-time').value,
+    amount:   parseFloat(document.getElementById('add-amount').value),
+  };
+  if (!body.amount) { toast('กรอกยอดเงินก่อนครับ', true); return; }
+  try {
+    await sbFetch('expenses', {
+      method: 'POST',
+      prefer: 'return=minimal',
+      body: JSON.stringify(body),
+    });
+    toast('เพิ่มรายการแล้วครับ ✅');
+    closeModal('add-modal');
+    loadData();
+  } catch(e) { toast('เพิ่มไม่ได้: ' + e.message, true); }
+}
+
+// ── Slip preview ───────────────────────────────────────────────────────
+function previewSlip(url) {
+  // เปิดในแท็บใหม่
+  window.open(url, '_blank');
+}
+
+// ── Export Excel ───────────────────────────────────────────────────────
+function exportExcel() {
+  if (!allRows.length) { toast('ไม่มีข้อมูลให้ export', true); return; }
+
+  const data = allRows.map(r => ({
+    'วัน':        r.day,
+    'เดือน':      r.month,
+    'ปี':         r.year,
+    'เวลา':       r.time_str,
+    'ยอดเงิน':    parseFloat(r.amount),
+    'URL สลิป':   r.slip_url || '',
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  // ปรับความกว้างคอลัมน์
+  ws['!cols'] = [
+    {wch:6},{wch:8},{wch:8},{wch:8},{wch:12},{wch:60}
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'รายจ่าย');
+
+  const month = document.getElementById('filter-month').value;
+  const year  = document.getElementById('filter-year').value;
+  const fname = `รายจ่าย${year ? '_'+year : ''}${month ? '_เดือน'+month : ''}.xlsx`;
+  XLSX.writeFile(wb, fname);
+  toast('Export สำเร็จ ✅');
+}
+
+// ── Util ───────────────────────────────────────────────────────────────
+function fmt(n) {
+  return parseFloat(n || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+let toastTimer;
+function toast(msg, isErr = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (isErr ? ' error' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = '', 3000);
+}
+
+// ── Close modal on bg click ────────────────────────────────────────────
+document.querySelectorAll('.modal-bg').forEach(bg => {
+  bg.addEventListener('click', e => { if (e.target === bg) bg.classList.remove('open'); });
+});
+
+// ── Auto-restore config ────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  const url = localStorage.getItem('sb_url');
+  const key = localStorage.getItem('sb_key');
+  if (url && key) {
+    document.getElementById('sb-url').value = url;
+    document.getElementById('sb-key').value = key;
+    SUPABASE_URL = url;
+    SUPABASE_KEY = key;
+    connect();
+  }
+  // ไม่ตั้งค่า filter เริ่มต้น -> default คือทุกวัน ทุกเดือน ทุกปี
+});
+</script>
+</body>
+</html>
